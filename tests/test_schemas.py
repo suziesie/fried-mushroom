@@ -94,6 +94,7 @@ class TestFlightPlanOutput:
             "altitude_delta_m",
             "replan_scope",
             "reroute_anchor",
+            "route",
         }
         assert expected == set(hints.keys())
 

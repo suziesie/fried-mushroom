@@ -311,6 +311,10 @@ ALTITUDE_DELTA_PREVENTIVE_M: Final[int] = 15
 POSTURE_ELEVATE_ALTITUDE_M: Final[int] = 25
 ALTITUDE_DELTA_TERRAIN_M: Final[int] = 50
 
+# 07 Flight Planning — terrain-aware 경로 생성 상수 (stub DEM: 지형고도=0m).
+ROUTE_MIN_CLEARANCE_M: Final[float] = 50.0
+ROUTE_MAX_CLIMB_RATE_M_PER_WP: Final[float] = 10.0
+
 # 06 Response — 위협 이벤트 → 3분류 (PHYSICAL / REMOTE / NAVIGATION).
 # 06 이 참조하는 공유 taxonomy. 레이어 간 직접 import 를 피하려 shared 에 둔다
 # (이전 layer_05_risk.likelihood 에서 이관, CLAUDE.md 레이어 격리 규칙 준수).

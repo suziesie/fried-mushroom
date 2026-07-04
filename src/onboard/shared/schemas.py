@@ -113,6 +113,7 @@ class FlightPlanOutput(TypedDict):
     altitude_delta_m: int
     replan_scope: ReplanScope
     reroute_anchor: str | None
+    route: list  # terrain-aware waypoints: [{lat, lon, alt_m, clearance_m}, ...]
 
 
 # ---------------------------------------------------------------------------

@@ -2,7 +2,7 @@
 
 from ..shared.constants import TIME_TO_COLLISION_THRESHOLD_S
 from ..shared.schemas import FlightPlanOutput, ResponseOutput
-from . import altitude, bearing
+from . import altitude, bearing, route as route_gen
 
 _REPLAN_SCOPE: dict[str, str] = {
     "RTL":                     "LOCAL",
@@ -46,10 +46,13 @@ def run(
     # MAINTAIN(replan_scope=NONE) → 재계획 없으므로 anchor 불필요
     final_anchor = None if scope == "NONE" else (b_anchor or alt_anchor)
 
+    generated_route = route_gen.generate_route(effective_action, delta, scope, cycle_context)
+
     return FlightPlanOutput(
         flight_action=effective_action,
         target_bearing_deg=tgt_bearing,
         altitude_delta_m=delta,
         replan_scope=scope,
         reroute_anchor=final_anchor,
+        route=generated_route,
     )

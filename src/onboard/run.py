@@ -56,6 +56,8 @@ def run_cycle(
         **cycle_context,
         **_extract_terrain_bearings(abstraction),  # 03 terrain_class 방위가 있으면 코리더 heuristic 을 덮어씀
         **({"obstacle_ttc_s": obstacle_ttc_s} if obstacle_ttc_s is not None else {}),
+        "corridor_waypoints": mission_brief.get("corridor", {}).get("waypoints", []),
+        "corridor_bases": mission_brief.get("corridor", {}).get("bases", {}),
     }
     flight_plan = _run_layer("07", lambda run: run(response, primary_context, cycle_context_07))
 

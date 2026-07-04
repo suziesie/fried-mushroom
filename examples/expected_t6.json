@@ -190,6 +190,7 @@
     "target_bearing_deg": null,
     "altitude_delta_m": 0,
     "replan_scope": "NONE",
-    "reroute_anchor": null
+    "reroute_anchor": null,
+    "route": []
   }
 }

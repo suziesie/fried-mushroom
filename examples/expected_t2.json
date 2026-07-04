@@ -226,6 +226,20 @@
     "target_bearing_deg": null,
     "altitude_delta_m": 0,
     "replan_scope": "FULL",
-    "reroute_anchor": "last_known_good_position"
+    "reroute_anchor": "last_known_good_position",
+    "route": [
+      {
+        "lat": 37.5,
+        "lon": 127.0,
+        "alt_m": 140.0,
+        "clearance_m": 140.0
+      },
+      {
+        "lat": 37.51,
+        "lon": 127.01,
+        "alt_m": 140.0,
+        "clearance_m": 140.0
+      }
+    ]
   }
 }

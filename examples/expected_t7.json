@@ -226,6 +226,26 @@
     "target_bearing_deg": 38.348113,
     "altitude_delta_m": 15,
     "replan_scope": "LOCAL",
-    "reroute_anchor": "optimal_terrain"
+    "reroute_anchor": "optimal_terrain",
+    "route": [
+      {
+        "lat": 37.7,
+        "lon": 127.2,
+        "alt_m": 75.0,
+        "clearance_m": 75.0
+      },
+      {
+        "lat": 37.71,
+        "lon": 127.21,
+        "alt_m": 75.0,
+        "clearance_m": 75.0
+      },
+      {
+        "lat": 37.72,
+        "lon": 127.22,
+        "alt_m": 50.0,
+        "clearance_m": 50.0
+      }
+    ]
   }
 }
