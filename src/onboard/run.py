@@ -190,5 +190,6 @@ _STUB_OUTPUT = {
         "altitude_delta_m": 0,
         "replan_scope": "NONE",
         "reroute_anchor": None,
+        "route": [],
     },
 }
