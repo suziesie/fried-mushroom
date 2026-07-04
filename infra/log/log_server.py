@@ -55,6 +55,15 @@ except Exception as _exc:  # noqa: BLE001
     cycle_to_log_entries = None  # type: ignore[assignment]
     _PIPELINE_IMPORT_ERROR = f"{type(_exc).__name__}: {_exc}"
 
+# layer 01 import 은 별도 가드 — 실패해도 /gcs/run(온보드) 은 살리고 /gcs/assemble 만 503.
+try:
+    from gcs.layer_01_info_center.run import assemble_draft
+
+    _LAYER01_IMPORT_ERROR: str | None = None
+except Exception as _exc:  # noqa: BLE001
+    assemble_draft = None  # type: ignore[assignment]
+    _LAYER01_IMPORT_ERROR = f"{type(_exc).__name__}: {_exc}"
+
 # 레이어 로그 스트림에서 다루는 레이어 값 목록(대시보드와 공유). "..."는 확장 여지.
 LAYERS = ("sensor", "abstraction", "risk_assessment", "response")
 # 로그 레벨(옵션, 기본 info).
@@ -208,6 +217,65 @@ def gcs_scenario(tag: str) -> dict[str, Any]:
         raise HTTPException(status_code=404, detail=f"시나리오 파일 손상: {exc}") from exc
 
 
+@app.get("/gcs/set-missions")
+def gcs_set_missions() -> list[dict[str, Any]]:
+    """examples/ 에서 set_mission_{tag}.json 을 스캔 (layer 01 입력 번들)."""
+    out: list[dict[str, Any]] = []
+    for p in sorted(EXAMPLES_DIR.glob("set_mission_*.json")):
+        tag = p.stem[len("set_mission_"):]
+        try:
+            sm = _load_example(p)
+        except Exception:  # noqa: BLE001
+            continue
+        out.append({"tag": tag, "sortie_id": sm.get("sortie_id"), "mission_context": sm.get("mission_context")})
+    return out
+
+
+@app.get("/gcs/set-mission/{tag}")
+def gcs_set_mission(tag: str) -> dict[str, Any]:
+    """태그 1건의 set_mission 입력 번들 반환 (태그 sanitize, 404)."""
+    if not _TAG_RE.match(tag):
+        raise HTTPException(status_code=404, detail=f"잘못된 set_mission 태그: {tag!r}")
+    p = EXAMPLES_DIR / f"set_mission_{tag}.json"
+    if not p.exists():
+        raise HTTPException(status_code=404, detail=f"set_mission 없음: {tag}")
+    try:
+        return _load_example(p)
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=404, detail=f"set_mission 파일 손상: {exc}") from exc
+
+
+@app.post("/gcs/assemble")
+async def gcs_assemble(body: dict[str, Any]) -> dict[str, Any]:
+    """{"set_mission"} → 실 layer 01 조립. draft_brief + 승인용 신호카드 + 경고 반환.
+    조립 단계를 gcs 레이어 로그로 허브에 publish (correlation_id 로 후속 run 과 연결)."""
+    if assemble_draft is None:
+        raise HTTPException(status_code=503, detail=f"layer 01 import 실패: {_LAYER01_IMPORT_ERROR}")
+    set_mission = body.get("set_mission")
+    if not isinstance(set_mission, dict):
+        raise HTTPException(status_code=400, detail='body 는 {"set_mission": {...}} 형식이어야 함')
+    try:
+        draft = assemble_draft(set_mission)
+    except (ValueError, KeyError) as exc:
+        raise HTTPException(status_code=400, detail=f"assemble 실패: {exc}") from exc
+
+    sortie_id = draft["draft_brief"].get("sortie_id", "SORTIE")
+    correlation_id = f"{sortie_id}-{next(_run_seq)}"
+    n_cards, n_warn = len(draft["signal_cards"]), len(draft["warnings"])
+    ts = int(time.time() * 1000)
+    await hub.publish({
+        "correlation_id": correlation_id, "layer": "gcs",
+        "log": f"01 임무브리핑 조립 · 신호카드 {n_cards} · 경고 {n_warn}",
+        "level": "warn" if n_warn else "info", "ts": ts,
+    })
+    for w in draft["warnings"]:
+        await hub.publish({
+            "correlation_id": correlation_id, "layer": "gcs",
+            "log": f"대조 경고: {w.get('message', w.get('field'))}", "level": "warn", "ts": ts,
+        })
+    return {**draft, "correlation_id": correlation_id}
+
+
 @app.post("/gcs/run")
 async def gcs_run(body: dict[str, Any]) -> dict[str, Any]:
     """{"raw", "mission_brief"} 로 온보드 run_cycle 1사이클 실행 후
@@ -229,9 +297,10 @@ async def gcs_run(body: dict[str, Any]) -> dict[str, Any]:
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=400, detail=f"run_cycle 실패: {exc}") from exc
 
+    # correlation_id: 조립(/gcs/assemble)에서 받은 값이 있으면 재사용 → 조립·사이클 로그 연결.
     seq = raw.get("seq") or next(_run_seq)
     sortie_id = mission_brief.get("sortie_id", "SORTIE")
-    correlation_id = f"{sortie_id}-{seq}"
+    correlation_id = body.get("correlation_id") or f"{sortie_id}-{seq}"
     entries = cycle_to_log_entries(correlation_id, result)
     for entry in entries:
         await hub.publish({**entry, "ts": int(time.time() * 1000)})

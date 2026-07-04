@@ -738,6 +738,20 @@ body {
   max-width: 100%;
 }
 
+/* #111: 지시서 → layer 01 조립 프리셋 그룹 */
+.gcs-preset-head {
+  margin-top: 8px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  text-transform: uppercase;
+}
+
+.gcs-preset-01 {
+  border-left-color: var(--accent-strong);
+}
+
 /* 중앙: METT+TC 편집기 폼 */
 
 #gcs-form {

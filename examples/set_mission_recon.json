@@ -1,0 +1,14 @@
+{
+  "sortie_id": "RECON-0704-01",
+  "directive_text": "적 저격조 및 대구경화기 첩보 확인됨. 가용 예비기체 없음. 손실 시 재보급 72시간 소요.",
+  "mission_context": "정찰",
+  "posture": {"watchcon": 3, "defcon": 3, "infocon": 4},
+  "drone_profile": {"armament": [], "spare_asset_available": true, "battery_pct": 65},
+  "corridor": {"waypoints": [], "bases": {}},
+  "weights": {"stealth": 0.4, "survival": 0.35, "info_value": 0.2, "timeliness": 0.05},
+  "c4i": {
+    "enemy_situation": ["적 저격조 활동 첩보 확인"],
+    "asset_management": {"spare_asset_available": true},
+    "known_mission": "정찰 감시 임무"
+  }
+}

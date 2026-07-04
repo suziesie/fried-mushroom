@@ -79,3 +79,83 @@ def test_gcs_run_bad_body_400() -> None:
     with TestClient(log_server.app) as client:
         resp = client.post("/gcs/run", json={"raw": "not-a-dict"})
         assert resp.status_code == 400
+
+
+# ── #111: 실 layer 01 배선 (/gcs/set-missions, /gcs/assemble, correlation_id 재사용) ──
+
+_BRIEF_KEYS = {"sortie_id", "mission_context", "posture", "drone_profile", "corridor", "weights"}
+
+
+def test_gcs_set_missions_lists_tags() -> None:
+    with TestClient(log_server.app) as client:
+        items = client.get("/gcs/set-missions").json()
+        tags = {it["tag"] for it in items}
+        assert {"recon", "strike"} <= tags
+        for it in items:
+            assert set(it) == {"tag", "sortie_id", "mission_context"}
+
+
+def test_gcs_set_mission_returns_json() -> None:
+    with TestClient(log_server.app) as client:
+        sm = client.get("/gcs/set-mission/recon").json()
+        assert sm["mission_context"] == "정찰"
+        assert "directive_text" in sm and "c4i" in sm
+
+
+def test_gcs_set_mission_bad_tag_404() -> None:
+    with TestClient(log_server.app) as client:
+        assert client.get("/gcs/set-mission/..%2Fetc").status_code == 404
+        assert client.get("/gcs/set-mission/nope999").status_code == 404
+
+
+def test_gcs_assemble_returns_draft_cards_warnings() -> None:
+    with TestClient(log_server.app) as client:
+        sm = client.get("/gcs/set-mission/recon").json()
+        body = client.post("/gcs/assemble", json={"set_mission": sm}).json()
+        assert set(body["draft_brief"]) == _BRIEF_KEYS
+        assert body["correlation_id"]
+        phrases = {c["source_phrase"] for c in body["signal_cards"]}
+        assert "저격조" in phrases
+        assert isinstance(body["warnings"], list)
+
+
+def test_gcs_assemble_publishes_gcs_entries_to_hub() -> None:
+    with TestClient(log_server.app) as client:
+        sm = client.get("/gcs/set-mission/recon").json()
+        resp = client.post("/gcs/assemble", json={"set_mission": sm})
+        cid = resp.json()["correlation_id"]
+        backlog = log_server.hub.backlog()
+        gcs_entries = [e for e in backlog if e["layer"] == "gcs"]
+        assert gcs_entries  # 조립 단계가 스트림에 나타남
+        assert all(e["correlation_id"] == cid for e in gcs_entries)
+
+
+def test_gcs_assemble_surfaces_spare_warning() -> None:
+    # strike: 등록 spare True vs C4I False → 경고.
+    with TestClient(log_server.app) as client:
+        sm = client.get("/gcs/set-mission/strike").json()
+        body = client.post("/gcs/assemble", json={"set_mission": sm}).json()
+        assert [w for w in body["warnings"] if w["field"] == "spare_available"]
+
+
+def test_gcs_assemble_missing_fields_400() -> None:
+    with TestClient(log_server.app) as client:
+        assert client.post("/gcs/assemble", json={"set_mission": {"sortie_id": "X"}}).status_code == 400
+
+
+def test_layer01_import_failure_isolated_from_gcs_run(monkeypatch) -> None:
+    # layer 01 불가(assemble_draft=None) 여도 /gcs/run(온보드) 은 살아있어야 함 (import 가드 분리).
+    monkeypatch.setattr(log_server, "assemble_draft", None)
+    with TestClient(log_server.app) as client:
+        assert client.post("/gcs/assemble", json={"set_mission": {"sortie_id": "x"}}).status_code == 503
+        scenario = client.get("/gcs/scenario/t3").json()
+        assert client.post("/gcs/run", json=scenario).status_code == 200
+
+
+def test_gcs_run_reuses_passed_correlation_id() -> None:
+    with TestClient(log_server.app) as client:
+        scenario = client.get("/gcs/scenario/t3").json()
+        resp = client.post("/gcs/run", json={**scenario, "correlation_id": "LINK-42"})
+        assert resp.status_code == 200
+        assert resp.json()["correlation_id"] == "LINK-42"
+        assert all(e["correlation_id"] == "LINK-42" for e in log_server.hub.backlog())

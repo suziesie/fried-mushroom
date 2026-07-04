@@ -1,0 +1,14 @@
+{
+  "sortie_id": "STRIKE-0704-01",
+  "directive_text": "적 저격조 확인됨. 타격 임무 승인. 전단살포 페이로드 탑재.",
+  "mission_context": "타격",
+  "posture": {"watchcon": 2, "defcon": 2, "infocon": 3},
+  "drone_profile": {"armament": [{"type": "leaflet", "expendable": true}], "spare_asset_available": true, "battery_pct": 65},
+  "corridor": {"waypoints": [], "bases": {}},
+  "weights": {"stealth": 0.3, "survival": 0.3, "info_value": 0.2, "timeliness": 0.2},
+  "c4i": {
+    "enemy_situation": ["적 저격조 활동 확인"],
+    "asset_management": {"spare_asset_available": false},
+    "known_mission": "타격 작전"
+  }
+}
