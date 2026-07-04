@@ -162,3 +162,67 @@ def test_rtl_all_waypoints_meet_min_clearance():
     route = generate_route("RTL", 0, "LOCAL", _CTX)
     for wp in route:
         assert wp["alt_m"] >= ROUTE_MIN_CLEARANCE_M
+
+
+# ---------------------------------------------------------------------------
+# 비균일 고도 보간 (rate-limiting 실제 발동 케이스)
+# ---------------------------------------------------------------------------
+
+
+def test_rate_limiting_inserts_intermediate_waypoints():
+    """고도 차이가 ROUTE_MAX_CLIMB_RATE_M_PER_WP 초과 시 중간 waypoint 가 삽입된다."""
+    import math
+
+    # 150→60 = 90m 하강 (min clearance=50 이상이라 clamp 없음)
+    steep_wps = [
+        {"id": "wp1", "lat": 37.50, "lon": 127.00, "alt_m": 150},
+        {"id": "wp2", "lat": 37.51, "lon": 127.01, "alt_m": 60},
+    ]
+    ctx = {"corridor_waypoints": steep_wps}
+    route = generate_route("ALTITUDE_CHANGE", 0, "LOCAL", ctx)
+
+    # 고도차 90m → ceil(90/10)=9 스텝 → 8 중간 waypoint 삽입 → 총 10개
+    expected_count = 1 + math.ceil(90 / ROUTE_MAX_CLIMB_RATE_M_PER_WP) - 1 + 1
+    assert len(route) == expected_count, (
+        f"중간 waypoint 삽입 후 총 {expected_count}개 예상, 실제 {len(route)}개"
+    )
+    # 모든 연속 차이가 제한 이내
+    for i in range(len(route) - 1):
+        diff = abs(route[i + 1]["alt_m"] - route[i]["alt_m"])
+        assert diff <= ROUTE_MAX_CLIMB_RATE_M_PER_WP + 1e-9, (
+            f"연속 고도 차이 {diff}m > 제한 {ROUTE_MAX_CLIMB_RATE_M_PER_WP}m"
+        )
+
+
+def test_all_consecutive_diffs_within_max_rate_nonuniform():
+    """비균일 고도 코리더에서도 모든 연속 고도 차이가 상한 이내."""
+    nonuniform_wps = [
+        {"id": "wp1", "lat": 37.50, "lon": 127.00, "alt_m": 60},
+        {"id": "wp2", "lat": 37.51, "lon": 127.01, "alt_m": 60},
+        {"id": "wp3", "lat": 37.52, "lon": 127.02, "alt_m": 5},
+    ]
+    ctx = {"corridor_waypoints": nonuniform_wps}
+    route = generate_route("ALTITUDE_CHANGE", 15, "LOCAL", ctx)
+    for i in range(len(route) - 1):
+        diff = abs(route[i + 1]["alt_m"] - route[i]["alt_m"])
+        assert diff <= ROUTE_MAX_CLIMB_RATE_M_PER_WP + 1e-9, (
+            f"연속 고도 차이 {diff}m > 제한 {ROUTE_MAX_CLIMB_RATE_M_PER_WP}m"
+        )
+
+
+def test_rtl_altitude_profile_rate_limited():
+    """RTL 에서 base 고도가 코리더보다 크게 낮을 때 하강률이 제한 이내."""
+    rtl_wps = [
+        {"id": "wp1", "lat": 37.50, "lon": 127.00, "alt_m": 120},
+        {"id": "wp2", "lat": 37.51, "lon": 127.01, "alt_m": 120},
+    ]
+    bases = {"emergency": {"id": "base", "lat": 37.49, "lon": 126.99, "alt_m": 50}}
+    ctx = {"corridor_waypoints": rtl_wps, "corridor_bases": bases}
+    route = generate_route("RTL", 0, "LOCAL", ctx)
+    # 마지막 구간 120→50=70m 하강 — 중간 waypoint 삽입으로 제한 강제
+    assert len(route) > len(rtl_wps) + 1, "70m 하강 시 중간 waypoint 가 삽입되어야 함"
+    for i in range(len(route) - 1):
+        diff = abs(route[i + 1]["alt_m"] - route[i]["alt_m"])
+        assert diff <= ROUTE_MAX_CLIMB_RATE_M_PER_WP + 1e-9, (
+            f"RTL 연속 고도 차이 {diff}m > 제한 {ROUTE_MAX_CLIMB_RATE_M_PER_WP}m"
+        )
